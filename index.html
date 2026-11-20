@@ -22,6 +22,10 @@ label{font-size:13px;color:var(--muted)}input[type=number]{width:88px}.status{fo
 .perf-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.perf-metric{background:#0e1729;border:1px solid var(--line);border-radius:8px;padding:9px;min-width:0}.perf-metric span{display:block;color:var(--muted);font-size:12px}.perf-metric strong{display:block;font-size:16px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.perf-table{width:100%;border-collapse:collapse;min-width:680px;margin-top:10px}.diagnostic-errors{margin-top:8px;max-height:220px;overflow:auto}.diagnostic-errors div{padding:5px 0;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 .alert-category-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
 .alert-category-grid .panel{margin:0;padding:9px;min-width:0}
+.alert-chip-list{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;padding-top:2px}
+.alert-chip{display:inline-flex;align-items:center;border:1px solid currentColor;border-radius:999px;padding:5px 10px;font-size:13px;font-weight:800;line-height:1.2;white-space:nowrap;background:#0b1020}
+.alert-chip.bull{color:var(--green);background:rgba(39,197,139,.09)}
+.alert-chip.bear{color:var(--red);background:rgba(241,107,120,.09)}
 @media(max-width:800px){.alert-category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){main{padding:9px}header{padding:13px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.perf-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{padding:10px}}
 </style>
@@ -161,7 +165,7 @@ function recordEmaCrossover(item,tf,closed,closes){
  if(bearishCross&&ema99Top){bearishAlerts[tf].unshift({symbol:item.symbol,tf,time:candleTime,ema7:e7[i],ema25:e25[i],ema99:e99[i]});if(bearishAlerts[tf].length>7)bearishAlerts[tf].length=7;renderCrossoverAlerts()}
 }
 function renderCrossoverAlerts(){
- const markup=(items,side)=>items.length?items.map(a=>'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--line)"><strong class="'+(side==='bull'?'bull':'bear')+'">'+a.symbol+'</strong><span class="small">'+new Date(a.time).toLocaleString()+'</span></div>').join(''):'<div class="empty">No alerts yet.</div>';
+ const markup=(items,side)=>items.length?'<div class="alert-chip-list">'+items.map(a=>'<span class="alert-chip '+(side==='bull'?'bull':'bear')+'">'+a.symbol+'</span>').join('')+'</div>':'<div class="empty">No alerts yet.</div>';
  for(const tf of alertTimeframes){
   $('bullAlertCount'+tf).textContent=bullishAlerts[tf].length+' / 7';
   $('bearAlertCount'+tf).textContent=bearishAlerts[tf].length+' / 7';
