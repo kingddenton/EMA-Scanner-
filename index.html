@@ -59,10 +59,10 @@ label{font-size:13px;color:var(--muted)}input[type=number]{width:88px}.status{fo
   <strong>Selected universe · EMA structure</strong><span class="small" id="tableSummary">Waiting for first scan</span>
  </div>
  <div class="table-wrap">
-  <table><thead><tr><th>Symbol</th><th>24H change</th><th>24H quote volume</th><th>EMA 7</th><th>EMA 25</th><th>EMA 99</th><th>EMA 7 / 25</th><th>Price vs EMA 99</th></tr></thead>
-  <tbody id="results"><tr><td colspan="8" class="empty">Press Scan once or Start scanning</td></tr></tbody></table>
+  <table><thead><tr><th>Symbol</th><th>24H change</th><th>24H quote volume</th><th>EMA 7</th><th>EMA 25</th><th>EMA 99</th><th>EMA 7 / 25</th><th>Price vs EMA 99</th><th>EMA 99 alignment</th></tr></thead>
+  <tbody id="results"><tr><td colspan="9" class="empty">Press Scan once or Start scanning</td></tr></tbody></table>
  </div>
- <div class="note">This first version establishes and displays the matured universe and raw EMA structure. Alert stages and EMA 99 territory rules will be added after we agree on their exact definitions.</div>
+ <div class="note">Bullish alignment: EMA 99 below both EMA 7 and EMA 25, with EMA 7 above EMA 25. Bearish alignment: EMA 99 above both EMA 7 and EMA 25, with EMA 7 below EMA 25. These are alignment gates; separate alert triggers have not yet been added.</div>
 </section>
 </main>
 <script>
@@ -99,10 +99,12 @@ async function scanSymbol(item,tf){
  return {...item,ema7:ema(closes.slice(-110),7),ema25:ema(closes.slice(-110),25),ema99:ema(closes.slice(-110),99),price:closes[closes.length-1]};
 }
 async function mapLimit(items,limit,fn,onDone){let next=0,done=0;const out=new Array(items.length);async function worker(){while(true){const i=next++;if(i>=items.length)return;try{out[i]=await fn(items[i])}catch(e){out[i]={...items[i],error:e.message}}done++;onDone?.(done,items.length)}}await Promise.all(Array.from({length:Math.min(limit,items.length)},worker));return out}
-function render(rows){const body=$('results');if(!rows.length){body.innerHTML='<tr><td colspan="8" class="empty">No contracts match the selected universe settings</td></tr>';return}
- body.innerHTML=rows.map(r=>{if(r.error)return '<tr><td class="symbol">'+r.symbol+'</td><td>'+pct(r.change)+'</td><td>'+fmt(r.quoteVolume,0)+'</td><td colspan="5" class="negative">Scan error: '+r.error+'</td></tr>';
+function render(rows){const body=$('results');if(!rows.length){body.innerHTML='<tr><td colspan="9" class="empty">No contracts match the selected universe settings</td></tr>';return}
+ body.innerHTML=rows.map(r=>{if(r.error)return '<tr><td class="symbol">'+r.symbol+'</td><td>'+pct(r.change)+'</td><td>'+fmt(r.quoteVolume,0)+'</td><td colspan="6" class="negative">Scan error: '+r.error+'</td></tr>';
  const side=r.ema7>r.ema25?'Bullish':r.ema7<r.ema25?'Bearish':'Equal';const priceSide=r.price>r.ema99?'Above':r.price<r.ema99?'Below':'At';
- return '<tr><td class="symbol">'+r.symbol+'</td><td class="'+(r.change>=0?'positive':'negative')+'">'+pct(r.change)+'</td><td>'+fmt(r.quoteVolume,0)+'</td><td>'+fmt(r.ema7)+'</td><td>'+fmt(r.ema25)+'</td><td>'+fmt(r.ema99)+'</td><td class="'+(side==='Bullish'?'bull':side==='Bearish'?'bear':'neutral')+'">'+side+'</td><td class="'+(priceSide==='Above'?'bull':priceSide==='Below'?'bear':'neutral')+'">'+priceSide+'</td></tr>'
+ const bullishAligned=r.ema99<r.ema7&&r.ema99<r.ema25&&r.ema7>r.ema25;const bearishAligned=r.ema99>r.ema7&&r.ema99>r.ema25&&r.ema7<r.ema25;
+ const alignment=bullishAligned?'Bullish aligned':bearishAligned?'Bearish aligned':'Not aligned';const alignmentClass=bullishAligned?'bull':bearishAligned?'bear':'neutral';
+ return '<tr><td class="symbol">'+r.symbol+'</td><td class="'+(r.change>=0?'positive':'negative')+'">'+pct(r.change)+'</td><td>'+fmt(r.quoteVolume,0)+'</td><td>'+fmt(r.ema7)+'</td><td>'+fmt(r.ema25)+'</td><td>'+fmt(r.ema99)+'</td><td class="'+(side==='Bullish'?'bull':side==='Bearish'?'bear':'neutral')+'">'+side+'</td><td class="'+(priceSide==='Above'?'bull':priceSide==='Below'?'bear':'neutral')+'">'+priceSide+'</td><td class="'+alignmentClass+'">'+alignment+'</td></tr>'
  }).join('');
 }
 async function scan(){if(state.scanBusy)return;state.scanBusy=true;try{setStatus('Loading eligible contracts and 24H market data…');const {eligible,selected}=await getMarketUniverse();$('eligibleCount').textContent=eligible.length;$('selectedCount').textContent=selected.length;$('scannedCount').textContent='0';$('universeStatus').textContent='Universe: '+eligible.length+' eligible USDT perpetuals above '+fmt(num('minVolume',2000000),0)+' USDT quote volume · '+(settings().universeMode==='percent'?'24H change ≥ ±'+settings().universeSize+'%':'Top '+settings().topCount+' gainers / bottom '+settings().bottomCount+' losers')+'.';$('tableSummary').textContent=selected.length+' selected · '+$('timeframe').value;
