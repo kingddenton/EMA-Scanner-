@@ -20,6 +20,9 @@ label{font-size:13px;color:var(--muted)}input[type=number]{width:88px}.status{fo
 .symbol{font-weight:800}.bull{color:var(--green);font-weight:750}.bear{color:var(--red);font-weight:750}.neutral{color:var(--muted)}.positive{color:var(--green)}.negative{color:var(--red)}
 .empty{text-align:center;color:var(--muted);padding:22px}.small{font-size:11px;color:var(--muted)}
 .perf-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.perf-metric{background:#0e1729;border:1px solid var(--line);border-radius:8px;padding:9px;min-width:0}.perf-metric span{display:block;color:var(--muted);font-size:12px}.perf-metric strong{display:block;font-size:16px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.perf-table{width:100%;border-collapse:collapse;min-width:680px;margin-top:10px}.diagnostic-errors{margin-top:8px;max-height:220px;overflow:auto}.diagnostic-errors div{padding:5px 0;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.alert-category-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+.alert-category-grid .panel{margin:0;padding:9px;min-width:0}
+@media(max-width:800px){.alert-category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){main{padding:9px}header{padding:13px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.perf-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{padding:10px}}
 </style>
 </head>
@@ -84,14 +87,14 @@ label{font-size:13px;color:var(--muted)}input[type=number]{width:88px}.status{fo
  <div class="note">Each timeframe is monitored independently. Alert detection uses completed candles only. Disabled timeframes are not checked.</div>
 </section>
 <section class="panel">
- <div class="row" style="justify-content:space-between;margin-bottom:8px"><strong>BULLISH EMA 7/25 CROSSOVER ALERTS</strong><span class="small" id="bullAlertCount">0 / 7</span></div>
- <div class="note">EMA 7 crosses above EMA 25, with EMA 99 below both at the crossover candle.</div>
- <div id="bullAlerts"><div class="empty">No bullish crossover alerts yet.</div></div>
+ <strong>BULLISH EMA 7/25 CROSSOVER ALERTS</strong>
+ <div class="note">EMA 7 crosses above EMA 25, with EMA 99 below both at the crossover candle. Newest first · maximum 7 entries per timeframe.</div>
+ <div class="alert-category-grid"><div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:7px"><strong>BULL · 1m</strong><span class="small" id="bullAlertCount1m">0 / 7</span></div><div id="bullAlerts1m"><div class="empty">No alerts yet.</div></div></div><div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:7px"><strong>BULL · 3m</strong><span class="small" id="bullAlertCount3m">0 / 7</span></div><div id="bullAlerts3m"><div class="empty">No alerts yet.</div></div></div><div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:7px"><strong>BULL · 5m</strong><span class="small" id="bullAlertCount5m">0 / 7</span></div><div id="bullAlerts5m"><div class="empty">No alerts yet.</div></div></div><div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:7px"><strong>BULL · 15m</strong><span class="small" id="bullAlertCount15m">0 / 7</span></div><div id="bullAlerts15m"><div class="empty">No alerts yet.</div></div></div></div>
 </section>
 <section class="panel">
- <div class="row" style="justify-content:space-between;margin-bottom:8px"><strong>BEARISH EMA 7/25 CROSSOVER ALERTS</strong><span class="small" id="bearAlertCount">0 / 7</span></div>
- <div class="note">EMA 7 crosses below EMA 25, with EMA 99 above both at the crossover candle.</div>
- <div id="bearAlerts"><div class="empty">No bearish crossover alerts yet.</div></div>
+ <strong>BEARISH EMA 7/25 CROSSOVER ALERTS</strong>
+ <div class="note">EMA 7 crosses below EMA 25, with EMA 99 above both at the crossover candle. Newest first · maximum 7 entries per timeframe.</div>
+ <div class="alert-category-grid"><div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:7px"><strong>BEAR · 1m</strong><span class="small" id="bearAlertCount1m">0 / 7</span></div><div id="bearAlerts1m"><div class="empty">No alerts yet.</div></div></div><div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:7px"><strong>BEAR · 3m</strong><span class="small" id="bearAlertCount3m">0 / 7</span></div><div id="bearAlerts3m"><div class="empty">No alerts yet.</div></div></div><div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:7px"><strong>BEAR · 5m</strong><span class="small" id="bearAlertCount5m">0 / 7</span></div><div id="bearAlerts5m"><div class="empty">No alerts yet.</div></div></div><div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:7px"><strong>BEAR · 15m</strong><span class="small" id="bearAlertCount15m">0 / 7</span></div><div id="bearAlerts15m"><div class="empty">No alerts yet.</div></div></div></div>
 </section>
 <section class="panel">
  <div class="row" style="justify-content:space-between;margin-bottom:9px">
@@ -110,8 +113,8 @@ const $=id=>document.getElementById(id);
 const state={running:false,timer:null,scanBusy:false,settingsKey:'emaScannerSettingsV1'};
 let exchangeSymbols=null,rateLimited=false,rateLimitUntil=0;
 let latestRows=[];
-const bullishAlerts=[];
-const bearishAlerts=[];
+const bullishAlerts=Object.fromEntries(alertTimeframes.map(tf=>[tf,[]]));
+const bearishAlerts=Object.fromEntries(alertTimeframes.map(tf=>[tf,[]]));
 const lastProcessedCandle=new Map();
 const alertTimeframes=['1m','3m','5m','15m'];
 const alertToggleIds={'1m':'alertTf1m','3m':'alertTf3m','5m':'alertTf5m','15m':'alertTf15m'};
@@ -154,13 +157,17 @@ function recordEmaCrossover(item,tf,closed,closes){
  const bearishCross=e7[prev]>=e25[prev]&&e7[i]<e25[i];
  const ema99Bottom=e99[i]<e7[i]&&e99[i]<e25[i];
  const ema99Top=e99[i]>e7[i]&&e99[i]>e25[i];
- if(bullishCross&&ema99Bottom){bullishAlerts.unshift({symbol:item.symbol,tf,time:candleTime,ema7:e7[i],ema25:e25[i],ema99:e99[i]});if(bullishAlerts.length>7)bullishAlerts.length=7;renderCrossoverAlerts()}
- if(bearishCross&&ema99Top){bearishAlerts.unshift({symbol:item.symbol,tf,time:candleTime,ema7:e7[i],ema25:e25[i],ema99:e99[i]});if(bearishAlerts.length>7)bearishAlerts.length=7;renderCrossoverAlerts()}
+ if(bullishCross&&ema99Bottom){bullishAlerts[tf].unshift({symbol:item.symbol,tf,time:candleTime,ema7:e7[i],ema25:e25[i],ema99:e99[i]});if(bullishAlerts[tf].length>7)bullishAlerts[tf].length=7;renderCrossoverAlerts()}
+ if(bearishCross&&ema99Top){bearishAlerts[tf].unshift({symbol:item.symbol,tf,time:candleTime,ema7:e7[i],ema25:e25[i],ema99:e99[i]});if(bearishAlerts[tf].length>7)bearishAlerts[tf].length=7;renderCrossoverAlerts()}
 }
 function renderCrossoverAlerts(){
- const markup=(items,side)=>items.length?items.map(a=>'<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:9px 0;border-top:1px solid var(--line)"><div><strong class="'+(side==='bull'?'bull':'bear')+'">'+a.symbol+'</strong> <span class="small">· '+a.tf+' · '+(side==='bull'?'Bullish':'Bearish')+' EMA 7/25 cross</span><div class="small">EMA 7 '+fmt(a.ema7)+' · EMA 25 '+fmt(a.ema25)+' · EMA 99 '+fmt(a.ema99)+'</div></div><span class="small">'+new Date(a.time).toLocaleString()+'</span></div>').join(''):'<div class="empty">No '+(side==='bull'?'bullish':'bearish')+' crossover alerts yet.</div>';
- $('bullAlertCount').textContent=bullishAlerts.length+' / 7';$('bearAlertCount').textContent=bearishAlerts.length+' / 7';
- $('bullAlerts').innerHTML=markup(bullishAlerts,'bull');$('bearAlerts').innerHTML=markup(bearishAlerts,'bear');
+ const markup=(items,side)=>items.length?items.map(a=>'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--line)"><strong class="'+(side==='bull'?'bull':'bear')+'">'+a.symbol+'</strong><span class="small">'+new Date(a.time).toLocaleString()+'</span></div>').join(''):'<div class="empty">No alerts yet.</div>';
+ for(const tf of alertTimeframes){
+  $('bullAlertCount'+tf).textContent=bullishAlerts[tf].length+' / 7';
+  $('bearAlertCount'+tf).textContent=bearishAlerts[tf].length+' / 7';
+  $('bullAlerts'+tf).innerHTML=markup(bullishAlerts[tf],'bull');
+  $('bearAlerts'+tf).innerHTML=markup(bearishAlerts[tf],'bear');
+ }
 }
 async function getCachedKlines(symbol,tf){const key=symbol+'|'+tf;const cached=candleCache.get(key);if(!cached){performance.cacheMisses++;const rows=await getJson('/fapi/v1/klines?symbol='+encodeURIComponent(symbol)+'&interval='+encodeURIComponent(tf)+'&limit=120');candleCache.set(key,rows.slice(-120));return candleCache.get(key)}performance.cacheHits++;let rows=await getJson('/fapi/v1/klines?symbol='+encodeURIComponent(symbol)+'&interval='+encodeURIComponent(tf)+'&startTime='+cached[cached.length-1][0]+'&limit=120');if(rows.length>=120){rows=await getJson('/fapi/v1/klines?symbol='+encodeURIComponent(symbol)+'&interval='+encodeURIComponent(tf)+'&limit=120');candleCache.set(key,rows.slice(-120));return candleCache.get(key)}const merged=new Map(cached.map(row=>[Number(row[0]),row]));for(const row of rows)merged.set(Number(row[0]),row);const updated=[...merged.values()].sort((a,b)=>Number(a[0])-Number(b[0])).slice(-120);candleCache.set(key,updated);return updated}
 async function scanSymbol(item,tf){
