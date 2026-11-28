@@ -23,6 +23,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 
 <div><label>OI polling interval (seconds)</label><input id="pollSeconds" type="number" min="10" max="60" step="1" value="10"></div>
 <div><label>Top coins to monitor</label><input id="coinLimit" type="number" min="1" max="100" value="100"></div>
+<div><label>Minimum absolute OI change (%)</label><input id="minOiChange" type="number" min="0" max="100" step="0.1" value="0.5"></div>
 <div><label>Test duration (minutes)</label><input id="duration" type="number" min="1" max="240" value="30"></div>
 </div><div class="actions"><button class="primary" id="startBtn">Build universe & start test</button><button id="scanBtn">Refresh universe once</button><button class="stop" id="stopBtn" disabled>Stop monitoring</button><button id="exportBtn">Export snapshots CSV</button></div>
 <div class="hint" style="margin-top:9px">Ranks USDT perpetuals by absolute 24h price change (largest gainers and losers) after the minimum volume filter. OI is displayed, never used as a qualification filter.</div>
@@ -31,7 +32,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <div class="metric"><small>Trading USDT perpetuals</small><strong id="total">—</strong></div><div class="metric"><small>Passed volume filter</small><strong id="volumePass">—</strong></div><div class="metric"><small>Top price-movers selected</small><strong id="eligible">—</strong></div><div class="metric"><small>Coins monitored</small><strong id="monitored">—</strong></div>
 <div class="metric"><small>OI requests / min (target)</small><strong id="rpm">—</strong></div><div class="metric"><small>Latest snapshot age</small><strong id="age">—</strong></div><div class="metric"><small>Mark-price feed age</small><strong id="priceAge">—</strong></div><div class="metric"><small>OI request failures</small><strong id="failures">0</strong></div><div class="metric"><small>Median changed-value gap</small><strong id="changeGap">—</strong></div><div class="metric"><small>Elapsed test time</small><strong id="elapsed">—</strong></div>
 </div><div class="hint" id="universeNote" style="margin-top:9px">Universe not loaded.</div><div class="hint" id="oiGateNote" style="margin-top:6px">OI is displayed for every selected coin; no OI qualification filter is applied.</div></section>
-<section class="panel"><h2>Top 100 USDT perpetuals · price change and open interest</h2><div class="hint">Ranked by absolute 24h price change. OI changes are calculated from locally collected Binance snapshots; each window appears after sufficient history is collected.</div><div class="scroll"><table><thead><tr><th>Rank</th><th>Coin</th><th>24h price Δ</th><th>1m OI Δ</th><th>5m OI Δ</th><th>15m OI Δ</th><th>30m OI Δ</th></tr></thead><tbody id="coinRows"><tr><td colspan="7" class="neutral">Start monitoring to populate the table.</td></tr></tbody></table></div></section>
+<section class="panel"><h2>Top 100 USDT perpetuals · price change and open interest</h2><div class="hint">Ranked by absolute 24h price change. Shows a coin when any available 1m, 5m, 15m or 30m OI window reaches the minimum absolute change setting. Positive and negative changes qualify. Windows appear after sufficient history is collected.</div><div class="scroll"><table><thead><tr><th>Rank</th><th>Coin</th><th>24h price Δ</th><th>1m OI Δ</th><th>5m OI Δ</th><th>15m OI Δ</th><th>30m OI Δ</th></tr></thead><tbody id="coinRows"><tr><td colspan="7" class="neutral">Start monitoring to populate the table.</td></tr></tbody></table></div></section>
 <section class="panel"><h2>Activity log</h2><div class="log" id="log"></div></section>
 <div class="hint">Important: Binance's current OI response timestamp is recorded as the exchange response timestamp; it does not prove when the underlying OI was last recalculated. This test measures observed value changes and response freshness, not guaranteed exchange publication latency.</div>
 </main>
@@ -133,16 +134,17 @@ function render(){
  const priceReceipts=Array.from(priceState.values(),v=>v.receipt||0),latestPrice=priceReceipts.length?Math.min(...priceReceipts):0;
  const ticks=Array.from(priceState.values()).reduce((n,v)=>n+(v.ticks||0),0);
  $('priceAge').textContent=latestPrice?((now-latestPrice)/1000).toFixed(1)+'s · '+ticks+' ticks':'No feed · 0 ticks';
+ const threshold=Math.max(0,Number($('minOiChange').value)||0);
  const rows=[];
- for(const x of monitored){const st=oiState.get(x.symbol);if(!st?.history?.length)continue;rows.push({symbol:x.symbol,priceChange:x.priceChange||0,changes:[60000,300000,900000,1800000].map(ms=>windowChange(st.history,ms))})}
- $('coinRows').innerHTML=rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+r.symbol+'</td><td class="'+(r.priceChange>0?'bull':r.priceChange<0?'bear':'neutral')+'">'+pct4(r.priceChange)+'</td>'+r.changes.map(v=>'<td class="'+(v>0?'bull':v<0?'bear':'neutral')+'">'+(v===null?'Warming up':pct4(v))+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="7" class="neutral">Waiting for first OI snapshots</td></tr>';
+ for(const x of monitored){const st=oiState.get(x.symbol);if(!st?.history?.length)continue;const changes=[60000,300000,900000,1800000].map(ms=>windowChange(st.history,ms));if(changes.some(v=>v!==null&&Math.abs(v)>=threshold))rows.push({symbol:x.symbol,priceChange:x.priceChange||0,changes})}
+ $('coinRows').innerHTML=rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+r.symbol+'</td><td class="'+(r.priceChange>0?'bull':r.priceChange<0?'bear':'neutral')+'">'+pct4(r.priceChange)+'</td>'+r.changes.map(v=>'<td class="'+(v>0?'bull':v<0?'bear':'neutral')+'">'+(v===null?'Warming up':pct4(v))+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="7" class="neutral">No coins currently meet the ±'+threshold.toFixed(1)+'% OI change filter. Waiting for qualifying readings.</td></tr>';
 }
 async function start(){
  if(timer)stop();failedOi=0;successfulOi=0;requestCount=0;$('failures').textContent='0';
  try{await buildUniverse();monitored=eligible.slice();if(!monitored.length)throw new Error('No USDT perpetuals passed the minimum 24h volume filter.');
  oiState.clear();priceState.clear();snapshots=[];startedAt=Date.now();stopAt=startedAt+Math.max(1,Number($('duration').value)||30)*60000;
  $('monitored').textContent=monitored.length;openPriceSocket(monitored);setStatus('Monitoring',true);$('startBtn').disabled=true;$('stopBtn').disabled=false;
- log('Monitoring '+monitored.length+' coins ranked by absolute 24h price change; 10s OI polling target.');
+ log('Monitoring '+monitored.length+' coins ranked by absolute 24h price change; showing coins with at least ±'+(Number($('minOiChange').value)||0.5)+'% OI change in any available window; 10s OI polling target.');
  await pollOI();const interval=Math.max(10,Math.min(60,Number($('pollSeconds').value)||10))*1000;
  timer=setInterval(async()=>{if(Date.now()>=stopAt){stop();log('Configured monitoring duration completed.');return}await pollOI()},interval);
  }catch(e){setStatus('Error');log('START ERROR: '+e.message);$('startBtn').disabled=false;$('stopBtn').disabled=true}
