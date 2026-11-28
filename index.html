@@ -69,13 +69,15 @@ async function buildUniverse(){
  return eligible;
 }
 function openPriceSocket(list){
- if(ws){ws.close();ws=null}if(!list.length)return;
- const streams=list.map(x=>x.symbol.toLowerCase()+'@markPrice@1s').join('/');
- ws=new WebSocket('wss://fstream.binance.com/stream?streams='+streams);
- ws.onopen=()=>log('Mark-price WebSocket connected for '+list.length+' monitored coins.');
- ws.onmessage=e=>{try{const msg=JSON.parse(e.data),d=msg.data;if(d?.s&&d?.p){priceState.set(d.s,{price:Number(d.p),time:Number(d.E)||Date.now(),receipt:Date.now()})}}catch{}};
+ if(ws){wsWanted=false;ws.close();ws=null}if(!list.length)return;wsWanted=true;
+ const connect=()=>{if(!wsWanted)return;const streams=list.map(x=>x.symbol.toLowerCase()+'@markPrice@1s').join('/');
+ try{ws=new WebSocket('wss://fstream.binance.com/stream?streams='+streams);
+ ws.onopen=()=>{priceSocketOpened=Date.now();log('Mark-price WebSocket connected for '+list.length+' monitored coins.')};
+ ws.onmessage=e=>{try{const msg=JSON.parse(e.data),d=msg.data;if(d?.s&&d?.p&&Number(d.p)>0){priceState.set(d.s,{price:Number(d.p),time:Number(d.E)||Date.now(),receipt:Date.now()})}}catch{}};
  ws.onerror=()=>log('Mark-price WebSocket error; OI polling continues.');
- ws.onclose=()=>{if(timer)log('Mark-price WebSocket disconnected.')};
+ ws.onclose=()=>{if(wsWanted){log('Mark-price WebSocket closed; reconnecting in 3 seconds.');wsRetry=setTimeout(connect,3000)}};
+ }catch(e){log('WebSocket setup failed: '+e.message);wsRetry=setTimeout(connect,5000)}};
+ connect();
 }
 function previousAt(state,ms){const cutoff=Date.now()-ms;const arr=state.history||[];for(let i=arr.length-1;i>=0;i--)if(arr[i].receipt<=cutoff)return arr[i];return arr[0]||null}
 function changeFrom(a,b){return a&&b&&a>0?(b-a)/a*100:null}
@@ -92,8 +94,9 @@ function recordSnapshot(sym,d){
  if(snapshots.length>100000)snapshots=snapshots.slice(-80000);
 }
 async function pollOI(){
- if(requestBusy||!monitored.length)return;requestBusy=true;
- try{await pool(monitored,5,async x=>{const d=await getJson(API+'/fapi/v1/openInterest?symbol='+x.symbol);recordSnapshot(x.symbol,d)});render()}finally{requestBusy=false}
+ if(requestBusy||!monitored.length)return;requestBusy=true;const cycleStart=Date.now();
+ try{await pool(monitored,5,async x=>{const d=await getJson(API+'/fapi/v1/openInterest?symbol='+x.symbol,1);recordSnapshot(x.symbol,d);successfulOi++});render();$('universeNote').textContent='Last OI polling cycle: '+(Date.now()-cycleStart)+'ms for '+monitored.length+' coins. Successful OI responses: '+successfulOi+'. Failed requests (including retries): '+failedOi+'.';
+ }finally{requestBusy=false}
 }
 function render(){
  const now=Date.now();$('monitored').textContent=monitored.length;$('rpm').textContent=Math.round(monitored.length*60/Math.max(5,Number($('pollSeconds').value)||5));
