@@ -73,7 +73,7 @@ async function buildUniverse(){
 function openPriceSocket(list){
  if(ws){wsWanted=false;ws.close();ws=null}if(!list.length)return;wsWanted=true;
  const connect=()=>{if(!wsWanted)return;const streams=list.map(x=>x.symbol.toLowerCase()+'@markPrice@1s').join('/');
- try{ws=new WebSocket('wss://fstream.binance.com/stream?streams='+streams);
+ try{ws=new WebSocket('wss://fstream.binance.com/market/stream?streams='+streams);
  ws.onopen=()=>{priceSocketOpened=Date.now();log('Mark-price WebSocket connected for '+list.length+' monitored coins.')};
  ws.onmessage=e=>{try{const msg=JSON.parse(e.data),d=msg.data;if(d?.s&&d?.p&&Number(d.p)>0){const now=Date.now();let ps=priceState.get(d.s)||{history:[],ticks:0};ps.price=Number(d.p);ps.time=Number(d.E)||now;ps.receipt=now;ps.ticks++;ps.history.push({price:ps.price,time:ps.time,receipt:now});ps.history=ps.history.filter(v=>v.receipt>now-5*60*1000).slice(-600);priceState.set(d.s,ps)}}catch{}};
  ws.onerror=()=>log('Mark-price WebSocket error; OI polling continues.');
