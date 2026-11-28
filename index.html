@@ -115,8 +115,8 @@ function render(){
  $('bullRows').innerHTML=renderSignals(bull);$('bearRows').innerHTML=renderSignals(bear);
 }
 async function start(){
- if(timer)stop();try{await buildUniverse();const n=Math.max(1,Math.min(100,Number($('coinLimit').value)||20));monitored=eligible.slice(0,n);if(!monitored.length)throw new Error('No contracts passed both filters.');
- oiState.clear();priceState.clear();snapshots=[];failedOi=0;successfulOi=0;requestCount=0;$('failures').textContent='0';startedAt=Date.now();stopAt=startedAt+Math.max(1,Number($('duration').value)||30)*60000;
+ if(timer)stop();failedOi=0;successfulOi=0;requestCount=0;$('failures').textContent='0';try{await buildUniverse();const n=Math.max(1,Math.min(100,Number($('coinLimit').value)||20));monitored=eligible.slice(0,n);if(!monitored.length)throw new Error('No contracts passed both filters.');
+ oiState.clear();priceState.clear();snapshots=[];startedAt=Date.now();stopAt=startedAt+Math.max(1,Number($('duration').value)||30)*60000;
  $('monitored').textContent=monitored.length;openPriceSocket(monitored);setStatus('Monitoring',true);$('startBtn').disabled=true;$('stopBtn').disabled=false;
  log('Freshness test started: '+monitored.length+' coins, '+$('pollSeconds').value+'s polling target.');
  await pollOI();const interval=Math.max(5,Math.min(60,Number($('pollSeconds').value)||5))*1000;
