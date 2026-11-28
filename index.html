@@ -24,6 +24,11 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <div><label>OI polling interval (seconds)</label><input id="pollSeconds" type="number" min="5" max="60" step="1" value="5"></div>
 <div><label>Coins in freshness test</label><input id="coinLimit" type="number" min="1" max="100" value="20"></div>
 <div><label>Test duration (minutes)</label><input id="duration" type="number" min="1" max="240" value="30"></div>
+</div><div class="hint" style="margin-top:10px">OI change thresholds (%) — independently editable for each comparison window. The same threshold applies to bullish and bearish signals.</div><div class="controls" style="margin-top:8px">
+<div><label>5m OI threshold (%)</label><input id="oiThreshold5m" type="number" min="0" step="0.1" value="1.0"></div>
+<div><label>15m OI threshold (%)</label><input id="oiThreshold15m" type="number" min="0" step="0.1" value="1.0"></div>
+<div><label>30m OI threshold (%)</label><input id="oiThreshold30m" type="number" min="0" step="0.1" value="1.0"></div>
+<div><label>1h OI threshold (%)</label><input id="oiThreshold1h" type="number" min="0" step="0.1" value="1.0"></div>
 </div><div class="actions"><button class="primary" id="startBtn">Build universe & start test</button><button id="scanBtn">Refresh universe once</button><button class="stop" id="stopBtn" disabled>Stop monitoring</button><button id="exportBtn">Export snapshots CSV</button></div>
 <div class="hint" style="margin-top:9px">Initial universe build checks current OI for eligible USDT perpetuals. The freshness test then polls the highest 24h-volume qualifying coins. Thresholds and test size are editable.</div>
 </section>
@@ -34,6 +39,10 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <div class="two">
 <section class="panel"><h2 class="bull">Bullish · OI rising + price rising</h2><div class="scroll"><table><thead><tr><th>Coin</th><th>OI Δ</th><th>Price Δ</th><th>OI value</th><th>Last update</th></tr></thead><tbody id="bullRows"><tr><td colspan="5" class="neutral">No signals yet</td></tr></tbody></table></div></section>
 <section class="panel"><h2 class="bear">Bearish · OI falling + price falling</h2><div class="scroll"><table><thead><tr><th>Coin</th><th>OI Δ</th><th>Price Δ</th><th>OI value</th><th>Last update</th></tr></thead><tbody id="bearRows"><tr><td colspan="5" class="neutral">No signals yet</td></tr></tbody></table></div></section>
+</div>
+<div class="two">
+<section class="panel"><h2 class="bull">Multi-timeframe bullish · OI increase + price increase</h2><div class="scroll"><table><thead><tr><th>Window</th><th>Coin</th><th>OI Δ</th><th>Threshold</th><th>Price Δ</th><th>OI value</th></tr></thead><tbody id="multiBullRows"><tr><td colspan="6" class="neutral">Waiting for history</td></tr></tbody></table></div></section>
+<section class="panel"><h2 class="bear">Multi-timeframe bearish · OI decrease + price decrease</h2><div class="scroll"><table><thead><tr><th>Window</th><th>Coin</th><th>OI Δ</th><th>Threshold</th><th>Price Δ</th><th>OI value</th></tr></thead><tbody id="multiBearRows"><tr><td colspan="6" class="neutral">Waiting for history</td></tr></tbody></table></div></section>
 </div>
 <section class="panel"><h2>Monitored coins · live OI snapshots</h2><div class="scroll"><table><thead><tr><th>Symbol</th><th>24h volume</th><th>OI qty</th><th>OI value</th><th>OI Δ / 30s</th><th>Price</th><th>Price Δ</th><th>Binance timestamp age</th><th>Changed-value gap</th></tr></thead><tbody id="coinRows"><tr><td colspan="9" class="neutral">Start the test to populate this table.</td></tr></tbody></table></div></section>
 <section class="panel"><h2>Activity log</h2><div class="log" id="log"></div></section>
@@ -75,7 +84,7 @@ function openPriceSocket(list){
  const connect=()=>{if(!wsWanted)return;const streams=list.map(x=>x.symbol.toLowerCase()+'@markPrice@1s').join('/');
  try{ws=new WebSocket('wss://fstream.binance.com/market/stream?streams='+streams);
  ws.onopen=()=>{priceSocketOpened=Date.now();log('Mark-price WebSocket connected for '+list.length+' monitored coins.')};
- ws.onmessage=e=>{try{const msg=JSON.parse(e.data),d=msg.data;if(d?.s&&d?.p&&Number(d.p)>0){const now=Date.now();let ps=priceState.get(d.s)||{history:[],ticks:0};ps.price=Number(d.p);ps.time=Number(d.E)||now;ps.receipt=now;ps.ticks++;ps.history.push({price:ps.price,time:ps.time,receipt:now});ps.history=ps.history.filter(v=>v.receipt>now-5*60*1000).slice(-600);priceState.set(d.s,ps)}}catch{}};
+ ws.onmessage=e=>{try{const msg=JSON.parse(e.data),d=msg.data;if(d?.s&&d?.p&&Number(d.p)>0){const now=Date.now();let ps=priceState.get(d.s)||{history:[],ticks:0};ps.price=Number(d.p);ps.time=Number(d.E)||now;ps.receipt=now;ps.ticks++;ps.history.push({price:ps.price,time:ps.time,receipt:now});ps.history=ps.history.filter(v=>v.receipt>now-65*60*1000).slice(-8000);priceState.set(d.s,ps)}}catch{}};
  ws.onerror=()=>log('Mark-price WebSocket error; OI polling continues.');
  ws.onclose=()=>{if(wsWanted){log('Mark-price WebSocket closed; reconnecting in 3 seconds.');wsRetry=setTimeout(connect,3000)}};
  }catch(e){log('WebSocket setup failed: '+e.message);wsRetry=setTimeout(connect,5000)}};
@@ -90,7 +99,7 @@ function recordSnapshot(sym,d){
  const prev=st.lastQty,delta=prev&&prev>0?(qty-prev)/prev*100:null;
  if(prev===null||prev===undefined||qty!==prev){if(st.lastChanged)st.changed.push(now-st.lastChanged);st.lastChanged=now;st.changed=st.changed.slice(-30)}
  const item={receipt:now,exchangeTime:Number(d.time)||0,qty,price,oiValue:qty*price,delta};
- st.history.push(item);st.history=st.history.filter(x=>x.receipt>now-5*60*1000).slice(-100);
+ st.history.push(item);st.history=st.history.filter(x=>x.receipt>now-65*60*1000).slice(-1000);
  st.lastQty=qty;st.exchangeTime=Number(d.time)||0;st.receipt=now;st.price=price;st.delta=delta;oiState.set(sym,st);
  latestReceipt=now;snapshots.push({symbol:sym,receipt:now,exchangeTime:st.exchangeTime,oi:qty,price,oiValue:qty*price,delta});
  if(snapshots.length>100000)snapshots=snapshots.slice(-80000);
@@ -113,6 +122,27 @@ function render(){
  const bull=rows.filter(r=>r.delta>0&&r.priceDelta>0).sort((a,b)=>b.delta-a.delta),bear=rows.filter(r=>r.delta<0&&r.priceDelta<0).sort((a,b)=>a.delta-b.delta);
  const renderSignals=(arr)=>arr.map(r=>'<tr><td>'+r.symbol+'</td><td class="'+(r.delta>0?'bull':'bear')+'">'+pct(r.delta)+'</td><td class="'+(r.priceDelta>0?'bull':'bear')+'">'+pct4(r.priceDelta)+'</td><td>'+money(r.oiValue)+'</td><td>'+new Date(oiState.get(r.symbol).receipt).toLocaleTimeString()+'</td></tr>').join('')||'<tr><td colspan="5" class="neutral">No signals yet</td></tr>';
  $('bullRows').innerHTML=renderSignals(bull);$('bearRows').innerHTML=renderSignals(bear);
+ const windows=[{label:'5m',ms:5*60*1000,input:'oiThreshold5m'},{label:'15m',ms:15*60*1000,input:'oiThreshold15m'},{label:'30m',ms:30*60*1000,input:'oiThreshold30m'},{label:'1h',ms:60*60*1000,input:'oiThreshold1h'}];
+ const multiBull=[],multiBear=[];
+ for(const x of monitored){
+   const st=oiState.get(x.symbol),px=priceState.get(x.symbol);if(!st?.history?.length||!px?.history?.length)continue;
+   const currentOi=st.history[st.history.length-1],currentPx=px.history[px.history.length-1];
+   for(const w of windows){
+     const cutoff=now-w.ms;
+     let oiBase=null,priceBase=null;
+     for(let i=st.history.length-1;i>=0;i--){if(st.history[i].receipt<=cutoff){oiBase=st.history[i];break}}
+     for(let i=px.history.length-1;i>=0;i--){if(px.history[i].receipt<=cutoff){priceBase=px.history[i];break}}
+     if(!oiBase||!priceBase)continue;
+     const oiChange=changeFrom(oiBase.qty,currentOi.qty),priceChange=changeFrom(priceBase.price,currentPx.price);
+     if(oiChange===null||priceChange===null)continue;
+     const threshold=Math.max(0,Number($(w.input).value)||0);
+     const row={window:w.label,symbol:x.symbol,oiChange,threshold,priceChange,oiValue:currentOi.qty*currentPx.price};
+     if(oiChange>=threshold&&priceChange>0)multiBull.push(row);
+     if(oiChange<=-threshold&&priceChange<0)multiBear.push(row);
+   }
+ }
+ const multiRows=(arr)=>arr.sort((a,b)=>Math.abs(b.oiChange)-Math.abs(a.oiChange)).map(r=>'<tr><td>'+r.window+'</td><td>'+r.symbol+'</td><td class="'+(r.oiChange>0?'bull':'bear')+'">'+pct(r.oiChange)+'</td><td>'+pct(r.threshold)+'</td><td class="'+(r.priceChange>0?'bull':'bear')+'">'+pct4(r.priceChange)+'</td><td>'+money(r.oiValue)+'</td></tr>').join('')||'<tr><td colspan="6" class="neutral">No qualifying signals · history may still be warming up</td></tr>';
+ $('multiBullRows').innerHTML=multiRows(multiBull);$('multiBearRows').innerHTML=multiRows(multiBear);
 }
 async function start(){
  if(timer)stop();failedOi=0;successfulOi=0;requestCount=0;$('failures').textContent='0';try{await buildUniverse();const n=Math.max(1,Math.min(100,Number($('coinLimit').value)||20));monitored=eligible.slice(0,n);if(!monitored.length)throw new Error('No contracts passed both filters.');
