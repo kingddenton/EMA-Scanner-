@@ -43,7 +43,9 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 const API='https://fapi.binance.com';
 const $=id=>document.getElementById(id);
 let symbols=[],eligible=[],monitored=[],oiState=new Map(),priceState=new Map(),snapshots=[],timer=null,ws=null,startedAt=0,stopAt=0,requestBusy=false,latestReceipt=0,failedOi=0,wsWanted=false,wsRetry=null,priceSocketOpened=0,successfulOi=0,requestCount=0;
-const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:2});\nconst priceFmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:8});\nconst pct4=n=>(n>=0?'+':'')+n.toFixed(4)+'%';
+const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
+const priceFmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:8});
+const pct4=n=>(n>=0?'+':'')+n.toFixed(4)+'%';
 const money=n=>'$'+fmt(n);
 const pct=n=>(n>=0?'+':'')+n.toFixed(2)+'%';
 const log=s=>{const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' · '+s;$('log').prepend(d)};
