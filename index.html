@@ -24,16 +24,29 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <div><label>OI polling interval (seconds)</label><input id="pollSeconds" type="number" min="5" max="60" step="1" value="5"></div>
 <div><label>Coins in freshness test</label><input id="coinLimit" type="number" min="1" max="100" value="20"></div>
 <div><label>Test duration (minutes)</label><input id="duration" type="number" min="1" max="240" value="30"></div>
+</div><div class="hint" style="margin-top:10px">OI change thresholds (%) — independently editable for each comparison window. The same threshold applies to bullish and bearish signals.</div><div class="controls" style="margin-top:8px">
+<div><label>5m OI threshold (%)</label><input id="oiThreshold5m" type="number" min="0" step="0.1" value="1.0"></div>
+<div><label>15m OI threshold (%)</label><input id="oiThreshold15m" type="number" min="0" step="0.1" value="1.0"></div>
+<div><label>30m OI threshold (%)</label><input id="oiThreshold30m" type="number" min="0" step="0.1" value="1.0"></div>
+<div><label>1h OI threshold (%)</label><input id="oiThreshold1h" type="number" min="0" step="0.1" value="1.0"></div>
+</div><div class="hint" style="margin-top:10px">Stage 2 — higher-timeframe OI gate. A coin must pass all three windows in the same direction after initial volume/OI qualification.</div><div class="controls" style="margin-top:8px">
+<div><label>30m OI gate (%)</label><input id="gateOi30m" type="number" min="0" step="0.1" value="2.0"></div>
+<div><label>1h OI gate (%)</label><input id="gateOi1h" type="number" min="0" step="0.1" value="2.0"></div>
+<div><label>4h OI gate (%)</label><input id="gateOi4h" type="number" min="0" step="0.1" value="2.0"></div>
 </div><div class="actions"><button class="primary" id="startBtn">Build universe & start test</button><button id="scanBtn">Refresh universe once</button><button class="stop" id="stopBtn" disabled>Stop monitoring</button><button id="exportBtn">Export snapshots CSV</button></div>
 <div class="hint" style="margin-top:9px">Initial universe build checks current OI for eligible USDT perpetuals. The freshness test then polls the highest 24h-volume qualifying coins. Thresholds and test size are editable.</div>
 </section>
 <section class="panel"><h2>Universe & data diagnostics</h2><div class="grid">
 <div class="metric"><small>Trading USDT perpetuals</small><strong id="total">—</strong></div><div class="metric"><small>Passed volume filter</small><strong id="volumePass">—</strong></div><div class="metric"><small>Passed both filters</small><strong id="eligible">—</strong></div><div class="metric"><small>Coins monitored</small><strong id="monitored">—</strong></div>
 <div class="metric"><small>OI requests / min (target)</small><strong id="rpm">—</strong></div><div class="metric"><small>Latest snapshot age</small><strong id="age">—</strong></div><div class="metric"><small>Mark-price feed age</small><strong id="priceAge">—</strong></div><div class="metric"><small>OI request failures</small><strong id="failures">0</strong></div><div class="metric"><small>Median changed-value gap</small><strong id="changeGap">—</strong></div><div class="metric"><small>Elapsed test time</small><strong id="elapsed">—</strong></div>
-</div><div class="hint" id="universeNote" style="margin-top:9px">Universe not loaded.</div></section>
+</div><div class="hint" id="universeNote" style="margin-top:9px">Universe not loaded.</div><div class="hint" id="oiGateNote" style="margin-top:6px">Higher-timeframe OI gate not run.</div><div class="hint" style="margin-top:10px">Stage 2 threshold summary · all three windows must pass in the same direction</div><div class="grid" style="margin-top:7px"><div class="metric"><small>30m OI requirement</small><strong id="displayGate30m">+2.0% / −2.0%</strong></div><div class="metric"><small>1h OI requirement</small><strong id="displayGate1h">+2.0% / −2.0%</strong></div><div class="metric"><small>4h OI requirement</small><strong id="displayGate4h">+2.0% / −2.0%</strong></div></div></section>
 <div class="two">
 <section class="panel"><h2 class="bull">Bullish · OI rising + price rising</h2><div class="scroll"><table><thead><tr><th>Coin</th><th>OI Δ</th><th>Price Δ</th><th>OI value</th><th>Last update</th></tr></thead><tbody id="bullRows"><tr><td colspan="5" class="neutral">No signals yet</td></tr></tbody></table></div></section>
 <section class="panel"><h2 class="bear">Bearish · OI falling + price falling</h2><div class="scroll"><table><thead><tr><th>Coin</th><th>OI Δ</th><th>Price Δ</th><th>OI value</th><th>Last update</th></tr></thead><tbody id="bearRows"><tr><td colspan="5" class="neutral">No signals yet</td></tr></tbody></table></div></section>
+</div>
+<div class="two">
+<section class="panel"><h2 class="bull">Multi-timeframe bullish · OI increase + price increase</h2><div class="scroll"><table><thead><tr><th>Window</th><th>Coin</th><th>OI Δ</th><th>Threshold</th><th>Price Δ</th><th>OI value</th></tr></thead><tbody id="multiBullRows"><tr><td colspan="6" class="neutral">Waiting for history</td></tr></tbody></table></div></section>
+<section class="panel"><h2 class="bear">Multi-timeframe bearish · OI decrease + price decrease</h2><div class="scroll"><table><thead><tr><th>Window</th><th>Coin</th><th>OI Δ</th><th>Threshold</th><th>Price Δ</th><th>OI value</th></tr></thead><tbody id="multiBearRows"><tr><td colspan="6" class="neutral">Waiting for history</td></tr></tbody></table></div></section>
 </div>
 <section class="panel"><h2>Monitored coins · live OI snapshots</h2><div class="scroll"><table><thead><tr><th>Symbol</th><th>24h volume</th><th>OI qty</th><th>OI value</th><th>OI Δ / 30s</th><th>Price</th><th>Price Δ</th><th>Binance timestamp age</th><th>Changed-value gap</th></tr></thead><tbody id="coinRows"><tr><td colspan="9" class="neutral">Start the test to populate this table.</td></tr></tbody></table></div></section>
 <section class="panel"><h2>Activity log</h2><div class="log" id="log"></div></section>
@@ -70,12 +83,39 @@ async function buildUniverse(){
  log('Universe complete: '+symbols.length+' contracts; '+volumePassed.length+' passed volume; '+eligible.length+' passed both filters.');
  return eligible;
 }
+async function applyHigherTimeframeOIGate(candidates){
+ const settings=[{label:'30m',period:'30m',input:'gateOi30m'},{label:'1h',period:'1h',input:'gateOi1h'},{label:'4h',period:'4h',input:'gateOi4h'}];
+ const thresholds=Object.fromEntries(settings.map(s=>[s.label,Math.max(0,Number($(s.input).value)||0)]));
+ const passed=[],results=[];let done=0;
+ log('Stage 2: checking 30m, 1h and 4h historical OI for '+candidates.length+' initially qualified coins. All three windows must pass in the same direction.');
+ await pool(candidates,5,async coin=>{
+   const changes={};let valid=true;
+   for(const s of settings){
+     try{
+       const data=await getJson(API+'/futures/data/openInterestHist?symbol='+coin.symbol+'&period='+s.period+'&limit=2',1);
+       if(!Array.isArray(data)||data.length<2){valid=false;changes[s.label]=null;continue}
+       const a=Number(data[data.length-2].sumOpenInterest),b=Number(data[data.length-1].sumOpenInterest);
+       if(!(a>0&&b>0)){valid=false;changes[s.label]=null;continue}
+       changes[s.label]=(b/a-1)*100;
+     }catch(e){valid=false;changes[s.label]=null;log(coin.symbol+' '+s.label+' OI history unavailable: '+e.message)}
+   }
+   const bullish=valid&&settings.every(s=>changes[s.label]>=thresholds[s.label]);
+   const bearish=valid&&settings.every(s=>changes[s.label]<=-thresholds[s.label]);
+   const row={...coin,changes,gateDirection:bullish?'BULLISH':bearish?'BEARISH':null};
+   results.push(row);if(bullish||bearish)passed.push(row);done++;
+ });
+ passed.sort((a,b)=>b.volume-a.volume);
+ const bullCount=passed.filter(x=>x.gateDirection==='BULLISH').length,bearCount=passed.filter(x=>x.gateDirection==='BEARISH').length;
+ $('oiGateNote').textContent='Stage 2 OI gate: '+passed.length+'/'+candidates.length+' passed · '+bullCount+' bullish · '+bearCount+' bearish. Required all 3 windows: 30m ≥ '+thresholds['30m']+'%, 1h ≥ '+thresholds['1h']+'%, 4h ≥ '+thresholds['4h']+'% (or all three ≤ negative thresholds for bearish).';
+ log('Stage 2 complete: '+passed.length+' passed ('+bullCount+' bullish, '+bearCount+' bearish); '+(candidates.length-passed.length)+' rejected or unavailable.');
+ return {passed,results};
+}
 function openPriceSocket(list){
  if(ws){wsWanted=false;ws.close();ws=null}if(!list.length)return;wsWanted=true;
  const connect=()=>{if(!wsWanted)return;const streams=list.map(x=>x.symbol.toLowerCase()+'@markPrice@1s').join('/');
  try{ws=new WebSocket('wss://fstream.binance.com/market/stream?streams='+streams);
  ws.onopen=()=>{priceSocketOpened=Date.now();log('Mark-price WebSocket connected for '+list.length+' monitored coins.')};
- ws.onmessage=e=>{try{const msg=JSON.parse(e.data),d=msg.data;if(d?.s&&d?.p&&Number(d.p)>0){const now=Date.now();let ps=priceState.get(d.s)||{history:[],ticks:0};ps.price=Number(d.p);ps.time=Number(d.E)||now;ps.receipt=now;ps.ticks++;ps.history.push({price:ps.price,time:ps.time,receipt:now});ps.history=ps.history.filter(v=>v.receipt>now-5*60*1000).slice(-600);priceState.set(d.s,ps)}}catch{}};
+ ws.onmessage=e=>{try{const msg=JSON.parse(e.data),d=msg.data;if(d?.s&&d?.p&&Number(d.p)>0){const now=Date.now();let ps=priceState.get(d.s)||{history:[],ticks:0};ps.price=Number(d.p);ps.time=Number(d.E)||now;ps.receipt=now;ps.ticks++;ps.history.push({price:ps.price,time:ps.time,receipt:now});ps.history=ps.history.filter(v=>v.receipt>now-65*60*1000).slice(-8000);priceState.set(d.s,ps)}}catch{}};
  ws.onerror=()=>log('Mark-price WebSocket error; OI polling continues.');
  ws.onclose=()=>{if(wsWanted){log('Mark-price WebSocket closed; reconnecting in 3 seconds.');wsRetry=setTimeout(connect,3000)}};
  }catch(e){log('WebSocket setup failed: '+e.message);wsRetry=setTimeout(connect,5000)}};
@@ -90,7 +130,7 @@ function recordSnapshot(sym,d){
  const prev=st.lastQty,delta=prev&&prev>0?(qty-prev)/prev*100:null;
  if(prev===null||prev===undefined||qty!==prev){if(st.lastChanged)st.changed.push(now-st.lastChanged);st.lastChanged=now;st.changed=st.changed.slice(-30)}
  const item={receipt:now,exchangeTime:Number(d.time)||0,qty,price,oiValue:qty*price,delta};
- st.history.push(item);st.history=st.history.filter(x=>x.receipt>now-5*60*1000).slice(-100);
+ st.history.push(item);st.history=st.history.filter(x=>x.receipt>now-65*60*1000).slice(-1000);
  st.lastQty=qty;st.exchangeTime=Number(d.time)||0;st.receipt=now;st.price=price;st.delta=delta;oiState.set(sym,st);
  latestReceipt=now;snapshots.push({symbol:sym,receipt:now,exchangeTime:st.exchangeTime,oi:qty,price,oiValue:qty*price,delta});
  if(snapshots.length>100000)snapshots=snapshots.slice(-80000);
@@ -113,9 +153,30 @@ function render(){
  const bull=rows.filter(r=>r.delta>0&&r.priceDelta>0).sort((a,b)=>b.delta-a.delta),bear=rows.filter(r=>r.delta<0&&r.priceDelta<0).sort((a,b)=>a.delta-b.delta);
  const renderSignals=(arr)=>arr.map(r=>'<tr><td>'+r.symbol+'</td><td class="'+(r.delta>0?'bull':'bear')+'">'+pct(r.delta)+'</td><td class="'+(r.priceDelta>0?'bull':'bear')+'">'+pct4(r.priceDelta)+'</td><td>'+money(r.oiValue)+'</td><td>'+new Date(oiState.get(r.symbol).receipt).toLocaleTimeString()+'</td></tr>').join('')||'<tr><td colspan="5" class="neutral">No signals yet</td></tr>';
  $('bullRows').innerHTML=renderSignals(bull);$('bearRows').innerHTML=renderSignals(bear);
+ const windows=[{label:'5m',ms:5*60*1000,input:'oiThreshold5m'},{label:'15m',ms:15*60*1000,input:'oiThreshold15m'},{label:'30m',ms:30*60*1000,input:'oiThreshold30m'},{label:'1h',ms:60*60*1000,input:'oiThreshold1h'}];
+ const multiBull=[],multiBear=[];
+ for(const x of monitored){
+   const st=oiState.get(x.symbol),px=priceState.get(x.symbol);if(!st?.history?.length||!px?.history?.length)continue;
+   const currentOi=st.history[st.history.length-1],currentPx=px.history[px.history.length-1];
+   for(const w of windows){
+     const cutoff=now-w.ms;
+     let oiBase=null,priceBase=null;
+     for(let i=st.history.length-1;i>=0;i--){if(st.history[i].receipt<=cutoff){oiBase=st.history[i];break}}
+     for(let i=px.history.length-1;i>=0;i--){if(px.history[i].receipt<=cutoff){priceBase=px.history[i];break}}
+     if(!oiBase||!priceBase)continue;
+     const oiChange=changeFrom(oiBase.qty,currentOi.qty),priceChange=changeFrom(priceBase.price,currentPx.price);
+     if(oiChange===null||priceChange===null)continue;
+     const threshold=Math.max(0,Number($(w.input).value)||0);
+     const row={window:w.label,symbol:x.symbol,oiChange,threshold,priceChange,oiValue:currentOi.qty*currentPx.price};
+     if(oiChange>=threshold&&priceChange>0)multiBull.push(row);
+     if(oiChange<=-threshold&&priceChange<0)multiBear.push(row);
+   }
+ }
+ const multiRows=(arr)=>arr.sort((a,b)=>Math.abs(b.oiChange)-Math.abs(a.oiChange)).map(r=>'<tr><td>'+r.window+'</td><td>'+r.symbol+'</td><td class="'+(r.oiChange>0?'bull':'bear')+'">'+pct(r.oiChange)+'</td><td>'+pct(r.threshold)+'</td><td class="'+(r.priceChange>0?'bull':'bear')+'">'+pct4(r.priceChange)+'</td><td>'+money(r.oiValue)+'</td></tr>').join('')||'<tr><td colspan="6" class="neutral">No qualifying signals · history may still be warming up</td></tr>';
+ $('multiBullRows').innerHTML=multiRows(multiBull);$('multiBearRows').innerHTML=multiRows(multiBear);
 }
 async function start(){
- if(timer)stop();failedOi=0;successfulOi=0;requestCount=0;$('failures').textContent='0';try{await buildUniverse();const n=Math.max(1,Math.min(100,Number($('coinLimit').value)||20));monitored=eligible.slice(0,n);if(!monitored.length)throw new Error('No contracts passed both filters.');
+ if(timer)stop();failedOi=0;successfulOi=0;requestCount=0;$('failures').textContent='0';try{await buildUniverse();const n=Math.max(1,Math.min(100,Number($('coinLimit').value)||20));const initialCandidates=eligible.slice(0,n);if(!initialCandidates.length)throw new Error('No contracts passed initial volume and OI filters.');const gate=await applyHigherTimeframeOIGate(initialCandidates);monitored=gate.passed;if(!monitored.length)throw new Error('No coins passed the 30m + 1h + 4h OI gate. Lower the editable thresholds or increase the initial coin limit.');
  oiState.clear();priceState.clear();snapshots=[];startedAt=Date.now();stopAt=startedAt+Math.max(1,Number($('duration').value)||30)*60000;
  $('monitored').textContent=monitored.length;openPriceSocket(monitored);setStatus('Monitoring',true);$('startBtn').disabled=true;$('stopBtn').disabled=false;
  log('Freshness test started: '+monitored.length+' coins, '+$('pollSeconds').value+'s polling target.');
@@ -125,5 +186,6 @@ async function start(){
 }
 function stop(){if(timer){clearInterval(timer);timer=null}wsWanted=false;if(wsRetry){clearTimeout(wsRetry);wsRetry=null}if(ws){ws.close();ws=null}setStatus('Stopped');$('startBtn').disabled=false;$('stopBtn').disabled=true}
 function exportCsv(){if(!snapshots.length){log('No snapshots available to export.');return}const head=['symbol','receipt_iso','binance_timestamp','oi_quantity','mark_price','oi_value_usdt','change_since_previous_pct'];const lines=[head.join(','),...snapshots.map(x=>[x.symbol,new Date(x.receipt).toISOString(),x.exchangeTime,x.oi,x.price,x.oiValue,x.delta??''].join(','))];const blob=new Blob([lines.join('\n')],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='oi-snapshots-'+new Date().toISOString().replace(/[:.]/g,'-')+'.csv';a.click();URL.revokeObjectURL(url)}
+function renderGateThresholds(){for(const [inputId,displayId] of [["gateOi30m","displayGate30m"],["gateOi1h","displayGate1h"],["gateOi4h","displayGate4h"]]){const v=Math.max(0,Number($(inputId).value)||0);$(displayId).textContent="+"+v.toFixed(1)+"% / −"+v.toFixed(1)+"%"} }["gateOi30m","gateOi1h","gateOi4h"].forEach(id=>$(id).addEventListener("input",renderGateThresholds));renderGateThresholds();
 $('startBtn').onclick=start;$('stopBtn').onclick=stop;$('scanBtn').onclick=async()=>{try{await buildUniverse()}catch(e){log('UNIVERSE ERROR: '+e.message);setStatus('Error')}};$('exportBtn').onclick=exportCsv;
 </script></body></html>
