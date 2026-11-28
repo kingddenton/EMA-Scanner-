@@ -75,7 +75,7 @@ function openPriceSocket(list){
  const connect=()=>{if(!wsWanted)return;const streams=list.map(x=>x.symbol.toLowerCase()+'@markPrice@1s').join('/');
  try{ws=new WebSocket('wss://fstream.binance.com/stream?streams='+streams);
  ws.onopen=()=>{priceSocketOpened=Date.now();log('Mark-price WebSocket connected for '+list.length+' monitored coins.')};
- ws.onmessage=e=>{try{const msg=JSON.parse(e.data),d=msg.data;if(d?.s&&d?.p&&Number(d.p)>0){priceState.set(d.s,{price:Number(d.p),time:Number(d.E)||Date.now(),receipt:Date.now()})}}catch{}};
+ ws.onmessage=e=>{try{const msg=JSON.parse(e.data),d=msg.data;if(d?.s&&d?.p&&Number(d.p)>0){const now=Date.now();let ps=priceState.get(d.s)||{history:[],ticks:0};ps.price=Number(d.p);ps.time=Number(d.E)||now;ps.receipt=now;ps.ticks++;ps.history.push({price:ps.price,time:ps.time,receipt:now});ps.history=ps.history.filter(v=>v.receipt>now-5*60*1000).slice(-600);priceState.set(d.s,ps)}}catch{}};
  ws.onerror=()=>log('Mark-price WebSocket error; OI polling continues.');
  ws.onclose=()=>{if(wsWanted){log('Mark-price WebSocket closed; reconnecting in 3 seconds.');wsRetry=setTimeout(connect,3000)}};
  }catch(e){log('WebSocket setup failed: '+e.message);wsRetry=setTimeout(connect,5000)}};
@@ -84,8 +84,8 @@ function openPriceSocket(list){
 function previousAt(state,ms){const cutoff=Date.now()-ms;const arr=state.history||[];for(let i=arr.length-1;i>=0;i--)if(arr[i].receipt<=cutoff)return arr[i];return arr[0]||null}
 function changeFrom(a,b){return a&&b&&a>0?(b-a)/a*100:null}
 function recordSnapshot(sym,d){
- const now=Date.now(),qty=Number(d.openInterest),p=priceState.get(sym)?.price||oiState.get(sym)?.price||0;
- const meta=eligible.find(x=>x.symbol===sym);const price=p||meta?.price||0;
+ const now=Date.now(),qty=Number(d.openInterest),ps=priceState.get(sym);
+ const meta=eligible.find(x=>x.symbol===sym);const price=ps?.price||meta?.price||0;
  let st=oiState.get(sym)||{history:[],changed:[],lastQty:null,lastChanged:null};
  const prev=st.lastQty,delta=prev&&prev>0?(qty-prev)/prev*100:null;
  if(prev===null||prev===undefined||qty!==prev){if(st.lastChanged)st.changed.push(now-st.lastChanged);st.lastChanged=now;st.changed=st.changed.slice(-30)}
@@ -104,9 +104,9 @@ function render(){
  const now=Date.now();$('monitored').textContent=monitored.length;$('rpm').textContent=Math.round(monitored.length*60/Math.max(5,Number($('pollSeconds').value)||5));
  $('age').textContent=latestReceipt?((now-latestReceipt)/1000).toFixed(1)+'s':'—';const priceReceipts=Array.from(priceState.values(),v=>v.receipt||0);const latestPrice=priceReceipts.length?Math.min(...priceReceipts):0;$('priceAge').textContent=latestPrice?((now-latestPrice)/1000).toFixed(1)+'s':'No feed';$('failures').textContent=failedOi;
  $('elapsed').textContent=startedAt?Math.floor((now-startedAt)/60000)+'m '+Math.floor(((now-startedAt)/1000)%60)+'s':'—';
- const allGaps=[];const rows=[];
- for(const x of monitored){const st=oiState.get(x.symbol);if(!st)continue;const px=priceState.get(x.symbol);const currentPrice=(px?.price>0?px.price:(st.price>0?st.price:x.price));const pBase=previousAt(st,30000);const priceDelta=pBase?.price?changeFrom(pBase.price,currentPrice):null;const oi30=previousAt(st,30000);const oiDelta=oi30?changeFrom(oi30.qty,st.lastQty):null;const gap=st.changed.length?st.changed.reduce((a,b)=>a+b,0)/st.changed.length/1000:null;if(gap!==null)allGaps.push(gap);
- rows.push({symbol:x.symbol,volume:x.volume,qty:st.lastQty,oiValue:st.lastQty*currentPrice,delta:oiDelta,price:currentPrice,priceDelta,oi30,exchangeAge:st.exchangeTime?(now-st.exchangeTime)/1000:null,gap});
+ const allGaps=[];const rows=[];const tickTotal=Array.from(priceState.values()).reduce((a,v)=>a+(v.ticks||0),0);$('priceAge').textContent=latestPrice?((now-latestPrice)/1000).toFixed(1)+'s · '+tickTotal+' ticks':'No feed · 0 ticks';
+ for(const x of monitored){const st=oiState.get(x.symbol);if(!st)continue;const px=priceState.get(x.symbol);const currentPrice=px?.price>0?px.price:null;const pCutoff=now-30000;const pHistory=px?.history||[];let pBase=null;for(let j=pHistory.length-1;j>=0;j--){if(pHistory[j].receipt<=pCutoff){pBase=pHistory[j];break}}const priceDelta=(pBase&&currentPrice>0)?changeFrom(pBase.price,currentPrice):null;const oi30=previousAt(st,30000);const oiDelta=oi30?changeFrom(oi30.qty,st.lastQty):null;const gap=st.changed.length?st.changed.reduce((a,b)=>a+b,0)/st.changed.length/1000:null;if(gap!==null)allGaps.push(gap);
+ rows.push({symbol:x.symbol,volume:x.volume,qty:st.lastQty,oiValue:st.lastQty*(currentPrice||st.price||x.price),delta:oiDelta,price:currentPrice,priceDelta,priceTicks:px?.ticks||0,priceAge:px?.receipt?(now-px.receipt)/1000:null,oi30,exchangeAge:st.exchangeTime?(now-st.exchangeTime)/1000:null,gap});
  }
  $('changeGap').textContent=allGaps.length?fmt(allGaps.sort((a,b)=>a-b)[Math.floor(allGaps.length/2)])+'s':'—';
  $('coinRows').innerHTML=rows.map(r=>'<tr><td>'+r.symbol+'</td><td>'+money(r.volume)+'</td><td>'+fmt(r.qty)+'</td><td>'+money(r.oiValue)+'</td><td class="'+(r.delta>0?'bull':r.delta<0?'bear':'neutral')+'">'+(r.delta===null?'—':pct(r.delta))+'</td><td>'+priceFmt(r.price)+'</td><td class="'+(r.priceDelta>0?'bull':r.priceDelta<0?'bear':'neutral')+'">'+(r.priceDelta===null?'—':pct4(r.priceDelta))+'</td><td>'+(r.exchangeAge===null?'—':fmt(r.exchangeAge)+'s')+'</td><td>'+(r.gap===null?'—':fmt(r.gap)+'s')+'</td></tr>').join('')||'<tr><td colspan="9">Waiting for first snapshots</td></tr>';
