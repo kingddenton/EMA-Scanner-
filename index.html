@@ -43,7 +43,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 const API='https://fapi.binance.com';
 const $=id=>document.getElementById(id);
 let symbols=[],eligible=[],monitored=[],oiState=new Map(),priceState=new Map(),snapshots=[],timer=null,ws=null,startedAt=0,stopAt=0,requestBusy=false,latestReceipt=0,failedOi=0,wsWanted=false,wsRetry=null,priceSocketOpened=0,successfulOi=0,requestCount=0;
-const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
+const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:2});\nconst priceFmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:8});\nconst pct4=n=>(n>=0?'+':'')+n.toFixed(4)+'%';
 const money=n=>'$'+fmt(n);
 const pct=n=>(n>=0?'+':'')+n.toFixed(2)+'%';
 const log=s=>{const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' · '+s;$('log').prepend(d)};
@@ -100,7 +100,7 @@ async function pollOI(){
 }
 function render(){
  const now=Date.now();$('monitored').textContent=monitored.length;$('rpm').textContent=Math.round(monitored.length*60/Math.max(5,Number($('pollSeconds').value)||5));
- $('age').textContent=latestReceipt?((now-latestReceipt)/1000).toFixed(1)+'s':'—';const latestPrice=Math.max(0,...Array.from(priceState.values(),v=>v.receipt||0));$('priceAge').textContent=latestPrice?((now-latestPrice)/1000).toFixed(1)+'s':'No feed';$('failures').textContent=failedOi;
+ $('age').textContent=latestReceipt?((now-latestReceipt)/1000).toFixed(1)+'s':'—';const priceReceipts=Array.from(priceState.values(),v=>v.receipt||0);const latestPrice=priceReceipts.length?Math.min(...priceReceipts):0;$('priceAge').textContent=latestPrice?((now-latestPrice)/1000).toFixed(1)+'s':'No feed';$('failures').textContent=failedOi;
  $('elapsed').textContent=startedAt?Math.floor((now-startedAt)/60000)+'m '+Math.floor(((now-startedAt)/1000)%60)+'s':'—';
  const allGaps=[];const rows=[];
  for(const x of monitored){const st=oiState.get(x.symbol);if(!st)continue;const px=priceState.get(x.symbol);const currentPrice=(px?.price>0?px.price:(st.price>0?st.price:x.price));const pBase=previousAt(st,30000);const priceDelta=pBase?.price?changeFrom(pBase.price,currentPrice):null;const oi30=previousAt(st,30000);const oiDelta=oi30?changeFrom(oi30.qty,st.lastQty):null;const gap=st.changed.length?st.changed.reduce((a,b)=>a+b,0)/st.changed.length/1000:null;if(gap!==null)allGaps.push(gap);
