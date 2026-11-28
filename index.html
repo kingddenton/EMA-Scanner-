@@ -29,7 +29,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 </section>
 <section class="panel"><h2>Universe & data diagnostics</h2><div class="grid">
 <div class="metric"><small>Trading USDT perpetuals</small><strong id="total">—</strong></div><div class="metric"><small>Passed volume filter</small><strong id="volumePass">—</strong></div><div class="metric"><small>Passed both filters</small><strong id="eligible">—</strong></div><div class="metric"><small>Coins monitored</small><strong id="monitored">—</strong></div>
-<div class="metric"><small>OI requests / min (target)</small><strong id="rpm">—</strong></div><div class="metric"><small>Latest snapshot age</small><strong id="age">—</strong></div><div class="metric"><small>Median changed-value gap</small><strong id="changeGap">—</strong></div><div class="metric"><small>Elapsed test time</small><strong id="elapsed">—</strong></div>
+<div class="metric"><small>OI requests / min (target)</small><strong id="rpm">—</strong></div><div class="metric"><small>Latest snapshot age</small><strong id="age">—</strong></div><div class="metric"><small>Mark-price feed age</small><strong id="priceAge">—</strong></div><div class="metric"><small>OI request failures</small><strong id="failures">0</strong></div><div class="metric"><small>Median changed-value gap</small><strong id="changeGap">—</strong></div><div class="metric"><small>Elapsed test time</small><strong id="elapsed">—</strong></div>
 </div><div class="hint" id="universeNote" style="margin-top:9px">Universe not loaded.</div></section>
 <div class="two">
 <section class="panel"><h2 class="bull">Bullish · OI rising + price rising</h2><div class="scroll"><table><thead><tr><th>Coin</th><th>OI Δ</th><th>Price Δ</th><th>OI value</th><th>Last update</th></tr></thead><tbody id="bullRows"><tr><td colspan="5" class="neutral">No signals yet</td></tr></tbody></table></div></section>
@@ -42,14 +42,14 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <script>
 const API='https://fapi.binance.com';
 const $=id=>document.getElementById(id);
-let symbols=[],eligible=[],monitored=[],oiState=new Map(),priceState=new Map(),snapshots=[],timer=null,ws=null,startedAt=0,stopAt=0,requestBusy=false,latestReceipt=0;
+let symbols=[],eligible=[],monitored=[],oiState=new Map(),priceState=new Map(),snapshots=[],timer=null,ws=null,startedAt=0,stopAt=0,requestBusy=false,latestReceipt=0,failedOi=0,wsWanted=false,wsRetry=null,priceSocketOpened=0,successfulOi=0,requestCount=0;
 const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
 const money=n=>'$'+fmt(n);
 const pct=n=>(n>=0?'+':'')+n.toFixed(2)+'%';
 const log=s=>{const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' · '+s;$('log').prepend(d)};
 function setStatus(s,live=false){$('statusText').textContent=s;$('liveDot').className=live?'dot live':'dot'}
-async function getJson(url){const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status+' '+url);return r.json()}
-async function pool(items,limit,fn){let i=0;const workers=Array.from({length:Math.min(limit,items.length)},async()=>{while(i<items.length){const item=items[i++];try{await fn(item)}catch(e){log(item.symbol+' OI request failed: '+e.message)}}});await Promise.all(workers)}
+async function getJson(url,retries=2){let last;for(let attempt=0;attempt<=retries;attempt++){const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000);try{requestCount++;const r=await fetch(url,{signal:controller.signal,cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const data=await r.json();clearTimeout(timeout);return data}catch(e){clearTimeout(timeout);last=e;if(attempt<retries)await new Promise(r=>setTimeout(r,350*(attempt+1)))} }throw new Error(last?.name==='AbortError'?'request timeout':last?.message||'network error')}
+async function pool(items,limit,fn){let i=0;const workers=Array.from({length:Math.min(limit,items.length)},async()=>{while(i<items.length){const item=items[i++];try{await fn(item)}catch(e){failedOi++;$('failures').textContent=failedOi;log(item.symbol+' request failed after retries: '+e.message)}}});await Promise.all(workers)}
 function resetMetrics(){$('total').textContent='—';$('volumePass').textContent='—';$('eligible').textContent='—';$('monitored').textContent='—'}
 async function buildUniverse(){
  setStatus('Building universe');log('Loading exchange information, 24h tickers and mark prices.');
@@ -60,8 +60,8 @@ async function buildUniverse(){
  const volumePassed=symbols.filter(sym=>Number(tickerMap.get(sym)?.quoteVolume||0)>=minV);
  const staged=volumePassed.map(sym=>({symbol:sym,volume:Number(tickerMap.get(sym).quoteVolume),price:markMap.get(sym)||Number(tickerMap.get(sym)?.lastPrice)||0})).filter(x=>x.price>0);
  const oiMap=new Map();
- log('Checking current OI for '+staged.length+' volume-qualified contracts (8 concurrent requests).');
- await pool(staged,8,async x=>{const d=await getJson(API+'/fapi/v1/openInterest?symbol='+x.symbol);const qty=Number(d.openInterest),value=qty*x.price;oiMap.set(x.symbol,{...x,oi:qty,oiValue:value,exchangeTime:Number(d.time),receipt:Date.now()})});
+ log('Checking current OI for '+staged.length+' volume-qualified contracts (8 concurrent requests; retries enabled).');
+ await pool(staged,8,async x=>{const d=await getJson(API+'/fapi/v1/openInterest?symbol='+x.symbol);const qty=Number(d.openInterest),value=qty*x.price;oiMap.set(x.symbol,{...x,oi:qty,oiValue:value,exchangeTime:Number(d.time),receipt:Date.now()});successfulOi++});
  eligible=staged.filter(x=>(oiMap.get(x.symbol)?.oiValue||0)>=minO).map(x=>({...oiMap.get(x.symbol)})).sort((a,b)=>b.volume-a.volume);
  $('total').textContent=symbols.length;$('volumePass').textContent=volumePassed.length;$('eligible').textContent=eligible.length;
  $('universeNote').textContent='Filters applied: 24h quote volume ≥ '+money(minV)+' and current OI notional ≥ '+money(minO)+'. OI value = openInterest quantity × mark price. Universe built at '+new Date().toLocaleTimeString()+'.';
@@ -97,10 +97,10 @@ async function pollOI(){
 }
 function render(){
  const now=Date.now();$('monitored').textContent=monitored.length;$('rpm').textContent=Math.round(monitored.length*60/Math.max(5,Number($('pollSeconds').value)||5));
- $('age').textContent=latestReceipt?((now-latestReceipt)/1000).toFixed(1)+'s':'—';
+ $('age').textContent=latestReceipt?((now-latestReceipt)/1000).toFixed(1)+'s':'—';const latestPrice=Math.max(0,...Array.from(priceState.values(),v=>v.receipt||0));$('priceAge').textContent=latestPrice?((now-latestPrice)/1000).toFixed(1)+'s':'No feed';$('failures').textContent=failedOi;
  $('elapsed').textContent=startedAt?Math.floor((now-startedAt)/60000)+'m '+Math.floor(((now-startedAt)/1000)%60)+'s':'—';
  const allGaps=[];const rows=[];
- for(const x of monitored){const st=oiState.get(x.symbol);if(!st)continue;const px=priceState.get(x.symbol);const currentPrice=px?.price||st.price||x.price;const pBase=previousAt(st,30000);const priceDelta=pBase?.price?changeFrom(pBase.price,currentPrice):null;const oi30=previousAt(st,30000);const oiDelta=oi30?changeFrom(oi30.qty,st.lastQty):null;const gap=st.changed.length?st.changed.reduce((a,b)=>a+b,0)/st.changed.length/1000:null;if(gap!==null)allGaps.push(gap);
+ for(const x of monitored){const st=oiState.get(x.symbol);if(!st)continue;const px=priceState.get(x.symbol);const currentPrice=(px?.price>0?px.price:(st.price>0?st.price:x.price));const pBase=previousAt(st,30000);const priceDelta=pBase?.price?changeFrom(pBase.price,currentPrice):null;const oi30=previousAt(st,30000);const oiDelta=oi30?changeFrom(oi30.qty,st.lastQty):null;const gap=st.changed.length?st.changed.reduce((a,b)=>a+b,0)/st.changed.length/1000:null;if(gap!==null)allGaps.push(gap);
  rows.push({symbol:x.symbol,volume:x.volume,qty:st.lastQty,oiValue:st.lastQty*currentPrice,delta:oiDelta,price:currentPrice,priceDelta,oi30,exchangeAge:st.exchangeTime?(now-st.exchangeTime)/1000:null,gap});
  }
  $('changeGap').textContent=allGaps.length?fmt(allGaps.sort((a,b)=>a-b)[Math.floor(allGaps.length/2)])+'s':'—';
@@ -111,14 +111,14 @@ function render(){
 }
 async function start(){
  if(timer)stop();try{await buildUniverse();const n=Math.max(1,Math.min(100,Number($('coinLimit').value)||20));monitored=eligible.slice(0,n);if(!monitored.length)throw new Error('No contracts passed both filters.');
- oiState.clear();snapshots=[];startedAt=Date.now();stopAt=startedAt+Math.max(1,Number($('duration').value)||30)*60000;
+ oiState.clear();priceState.clear();snapshots=[];failedOi=0;successfulOi=0;requestCount=0;$('failures').textContent='0';startedAt=Date.now();stopAt=startedAt+Math.max(1,Number($('duration').value)||30)*60000;
  $('monitored').textContent=monitored.length;openPriceSocket(monitored);setStatus('Monitoring',true);$('startBtn').disabled=true;$('stopBtn').disabled=false;
  log('Freshness test started: '+monitored.length+' coins, '+$('pollSeconds').value+'s polling target.');
  await pollOI();const interval=Math.max(5,Math.min(60,Number($('pollSeconds').value)||5))*1000;
  timer=setInterval(async()=>{if(Date.now()>=stopAt){stop();log('Configured test duration completed.');return}await pollOI()},interval);
  }catch(e){setStatus('Error');log('START ERROR: '+e.message);$('startBtn').disabled=false;$('stopBtn').disabled=true}
 }
-function stop(){if(timer){clearInterval(timer);timer=null}if(ws){ws.close();ws=null}setStatus('Stopped');$('startBtn').disabled=false;$('stopBtn').disabled=true}
+function stop(){if(timer){clearInterval(timer);timer=null}wsWanted=false;if(wsRetry){clearTimeout(wsRetry);wsRetry=null}if(ws){ws.close();ws=null}setStatus('Stopped');$('startBtn').disabled=false;$('stopBtn').disabled=true}
 function exportCsv(){if(!snapshots.length){log('No snapshots available to export.');return}const head=['symbol','receipt_iso','binance_timestamp','oi_quantity','mark_price','oi_value_usdt','change_since_previous_pct'];const lines=[head.join(','),...snapshots.map(x=>[x.symbol,new Date(x.receipt).toISOString(),x.exchangeTime,x.oi,x.price,x.oiValue,x.delta??''].join(','))];const blob=new Blob([lines.join('\n')],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='oi-snapshots-'+new Date().toISOString().replace(/[:.]/g,'-')+'.csv';a.click();URL.revokeObjectURL(url)}
 $('startBtn').onclick=start;$('stopBtn').onclick=stop;$('scanBtn').onclick=async()=>{try{await buildUniverse()}catch(e){log('UNIVERSE ERROR: '+e.message);setStatus('Error')}};$('exportBtn').onclick=exportCsv;
 </script></body></html>
